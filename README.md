@@ -23,6 +23,10 @@
 cd /path/to/your-project
 gh skill install taikt/llm-wiki llm-wiki
 ```
+or update
+```bash
+gh skill update taikt/llm-wiki llm-wiki
+```
 
 Then edit `.github/skills/llm-wiki/config.yaml` and set your wiki root path.
 

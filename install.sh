@@ -10,7 +10,7 @@ TARGET=".github/skills/llm-wiki"
 
 cd "$(pwd)"
 
-echo "📦 Cài đặt skill llm-wiki vào $TARGET …"
+echo "📦 Installing llm-wiki skill into $TARGET …"
 
 mkdir -p "$TARGET/scripts"
 
@@ -31,13 +31,13 @@ done
 chmod +x "$TARGET/scripts/"*.py
 
 echo ""
-echo "✅  Cài đặt thành công!"
+echo "✅  Installation complete!"
 echo ""
-echo "📝  Bước tiếp theo: Mở file sau và sửa đường dẫn wiki root của bạn:"
+echo "📝  Next step: open the config file and set your wiki root path:"
 echo "    $TARGET/config.yaml"
 echo ""
-echo "💡  Sau đó dùng Copilot Chat với các lệnh như:"
-echo "    • \"ingest file.pdf\"         — thêm tài liệu vào wiki"
-echo "    • \"wiki có nội dung gì về…\" — tra cứu wiki"
-echo "    • \"lint wiki\"              — kiểm tra wiki"
+echo "💡  Then use Copilot Chat with commands like:"
+echo "    • \"ingest file.pdf\"         — add documents to your wiki"
+echo "    • \"what does the wiki say about…\" — query the wiki"
+echo "    • \"lint wiki\"              — check wiki quality"
 echo ""

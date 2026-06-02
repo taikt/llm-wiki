@@ -3,10 +3,10 @@ name: llm-wiki
 description: "Manage a personal LLM-maintained wiki: ingest source documents, answer questions, create/update concept pages, lint the wiki, and configure projects. Use when the user says 'ingest', 'add source', asks a question about wiki content, says 'lint', 'audit', 'configure wiki', or mentions a filename to add. Supports configurable root folder so you can work with any project's wiki regardless of the currently open workspace."
 standard: https://agentskills.io/specification
 license: MIT
-compatibility: "Requires Python 3.8+. Converter packages (markitdown or docling) are auto-installed on first use. macOS only for Apple Notes ingestion."
+compatibility: "Requires Python 3.8+. Python venv is auto-created on first use (no manual setup). Converter packages (markitdown or docling) are auto-installed on first use. macOS only for Apple Notes ingestion."
 metadata:
   author: taikt
-  version: "1.4"
+  version: "1.5"
   argument-hint: "<question or command> [--project <name>] [--root <absolute-path>]"
 ---
 
@@ -49,11 +49,37 @@ projects:
 
 1. Read `config.yaml` to load both global settings and the project list.
    - **Global settings** (top-level keys, all optional):
-     - `venv` — path to a Python virtual environment. Auto-expand `~`. Default: none (use system Python).
+     - `venv` — path to a Python virtual environment. Auto-expand `~`. Default: **auto-created** (see below).
      - `converter` — preferred converter tool: `markitdown` (default) or `docling`.
    - **Projects** — entries under the `projects` key (YAML array).
      - Each project has: `name`, `root`, `description`.
-   - Store resolved `<venv>` and `<converter>` for use in all subsequent steps.
+   - Store resolved `<root>`, `<venv>`, and `<converter>` for use in all subsequent steps.
+
+2. **Auto-create a Python virtual environment if needed** (so non-technical users never need to run `python3 -m venv` manually):
+
+   > ⚡ This runs silently — do not ask the user for permission.
+
+   - If `<venv>` is set in config.yaml and the path exists → use it as-is.
+   - If `<venv>` is set but the path **does not exist** → auto-create it:
+     ```
+     python3 -m venv "<venv>"
+     ```
+     (On Windows: `python -m venv "<venv>"`)
+   - If `<venv>` is **not set** (empty or missing) → auto-create inside the wiki's cache folder:
+     ```
+     <venv> = <root>/.llm-wiki/.venv
+     python3 -m venv "<venv>"
+     ```
+     (On Windows: `python -m venv "<venv>"`)
+   - **Confirm it worked**: after creation, verify the venv's Python exists:
+     - macOS/Linux: `<venv>/bin/python` exists
+     - Windows: `<venv>\Scripts\python.exe` exists
+   - After creation, always upgrade pip inside the fresh venv:
+     ```
+     "<venv>/bin/python" -m pip install --upgrade pip
+     ```
+     (Windows: `"<venv>\Scripts\python.exe" -m pip install --upgrade pip`)
+   - Store the resolved `<venv>` — it is now guaranteed to exist for all subsequent steps.
 
 | Argument | Meaning |
 |---|---|
@@ -72,11 +98,13 @@ projects:
 
 ```
 <root>/
-  raw/           -- source documents (immutable — NEVER modify)
-  .llm-wiki/cached/ -- converted .md cache (auto-created, never touch manually)
-  wiki/          -- markdown pages maintained by Copilot (= Obsidian vault folder)
-  wiki/index.md  -- table of contents for the entire wiki
-  wiki/log.md    -- append-only record of all operations
+  raw/              -- source documents (immutable — NEVER modify)
+  .llm-wiki/
+    cached/         -- converted .md cache (auto-created, never touch manually)
+    .venv/          -- Python virtual env (auto-created on first use, never touch manually)
+  wiki/             -- markdown pages maintained by Copilot (= Obsidian vault folder)
+  wiki/index.md     -- table of contents for the entire wiki
+  wiki/log.md       -- append-only record of all operations
 ```
 
 > **Obsidian tip**: Point your Obsidian vault to `<root>/wiki/` (or the parent `<root>/`). The `.llm-wiki/` folder can be excluded from the vault via Obsidian's "Excluded files" setting.
@@ -111,10 +139,8 @@ If the file extension is NOT `.txt`, `.md`, `.rst`, `.log`, `.csv`, `.json`, `.y
 
 **A-0a — Convert source → save as `.md` file:**
 
-1. Resolve settings from config:
+1. Settings are already resolved (step 1–2 above): `<venv>` is guaranteed to exist.
    - `<converter>` — value of `converter` key in config.yaml (default: `markitdown`).
-   - `<venv>` — value of `venv` key in config.yaml (empty string if not set).
-   - Build the `--venv` flag: if `<venv>` is set, append `--venv "<venv>"`, otherwise omit it.
 2. Determine the output path for the converted Markdown:
   ```
   <md_path> = <root>/.llm-wiki/cached/<filename-stem>.md
@@ -122,21 +148,21 @@ If the file extension is NOT `.txt`, `.md`, `.rst`, `.log`, `.csv`, `.json`, `.y
   e.g. `report.pdf` → `<root>/.llm-wiki/cached/report.md`
   - Create `<root>/.llm-wiki/cached/` if it doesn't exist (auto-create).
   - **Never** write converted files into `<root>/raw/` — that folder is immutable.
-3. Run the converter script, passing `--output` to save directly to disk:
+3. Run the converter script using the **venv's Python**, passing `--output` to save directly to disk:
    ```
-   python <skill_dir>/scripts/convert.py "<root>/raw/<filename>" \
+   "<venv>/bin/python" <skill_dir>/scripts/convert.py "<root>/raw/<filename>" \
        --tool <converter> \
        --auto-install \
        --output "<md_path>" \
-       [--venv "<venv>"]
+       --venv "<venv>"
    ```
    - `<skill_dir>` is the directory containing this SKILL.md file (`.github/skills/llm-wiki`).
    - `--auto-install` automatically installs `markitdown[all]` or `docling` (depending on `<converter>`) if the package is missing in the environment. **No manual install is needed.**
    - The script prints the resolved output path to stdout on success.
    - To override the converter for a single file, append `--tool docling`.
-   - On Windows, invoke with the venv Python directly if needed:
+   - On Windows, use the venv Python directly:
      ```
-     "<venv>\Scripts\python.exe" <skill_dir>/scripts/convert.py "<root>/raw/<filename>" --tool <converter> --auto-install --output "<md_path>"
+     "<venv>\Scripts\python.exe" <skill_dir>/scripts/convert.py "<root>/raw/<filename>" --tool <converter> --auto-install --output "<md_path>" --venv "<venv>"
      ```
    - If conversion fails, show the error output to the user and stop.
 
