@@ -1,0 +1,211 @@
+#
+# NOTE! Don't add files that are generated in specific
+# subdirectories here. Add them in the ".gitignore" file
+# in that subdirectory instead.
+#
+# NOTE! Please use 'git ls-files -i --exclude-standard'
+# command after changing this file, to see if there are
+# any tracked files which get ignored after the change.
+#
+# Normal rules (sorted alphabetically)
+#
+# .* => ignrore all dot files/folders
+*.a
+*.bin
+*.bz2
+*.c.[012]*.*
+*.dtb
+*.dtb.S
+*.dwo
+*.elf
+*.gcno
+*.gz
+*.i
+*.ko
+*.ll
+*.lst
+*.lz4
+*.lzma
+*.lzo
+*.mod.c
+*.o
+*.o.*
+*.order
+*.patch
+*.s
+*.so
+*.so.dbg
+*.su
+*.symtypes
+*.tar
+*.xz
+*.out
+*.exe
+tempCodeRunnerFile.cpp
+.DS_Store
+Module.symvers
+modules.builtin
+tags
+
+#
+# Top-level generic files
+#
+/tags
+/TAGS
+/linux
+/vmlinux
+/vmlinux.32
+/vmlinux-gdb.py
+/vmlinuz
+/System.map
+/Module.markers
+
+#
+# RPM spec file (make rpm-pkg)
+#
+/*.spec
+
+#
+# Debian directory (make deb-pkg)
+#
+/debian/
+
+#
+# tar directory (make tar*-pkg)
+#
+/tar-install/
+
+#
+# git files that we don't want to ignore even if they are dot-files
+#
+!.gitignore
+!.mailmap
+!.cocciconfig
+
+#
+# Generated include files
+#
+include/config
+include/generated
+arch/*/include/generated
+
+# stgit generated dirs
+patches-*
+
+# quilt's files
+patches
+series
+
+# cscope files
+cscope.*
+ncscope.*
+
+# gnu global files
+GPATH
+GRTAGS
+GSYMS
+GTAGS
+
+# id-utils files
+ID
+
+*.orig
+*~
+\#*#
+
+#
+# Leavings from module signing
+#
+extra_certificates
+signing_key.pem
+signing_key.priv
+signing_key.x509
+x509.genkey
+
+# Kconfig presets
+all.config
+
+# Kdevelop4
+*.kdev4
+
+#.vscode
+build
+.DS_Store
+a.out
+#*.vsix
+out
+__pycache__
+*.log
+*.vsix
+venv
+.vscode
+.ipynb_checkpoints
+input.txt
+tmp.cpp
+cb_javis.egg-info
+dist_obfuscated
+
+# Web / React / frontend build artifacts and tool caches
+node_modules/
+# build output folders
+/dist
+#/build
+/out
+dist
+
+# Framework/tool caches
+/.next/
+/.parcel-cache/
+/.vite/
+/.cache/
+
+# Test coverage
+/coverage/
+
+# Package manager lockfiles and artifacts
+yarn.lock
+.pnp.cjs
+
+# Turborepo
+.turbo/
+
+# Environment files (do NOT commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Logs and debug
+npm-debug.log
+yarn-error.log
+*.log
+
+# macOS
+.DS_Store
+
+# Python/virtualenv
+venv/
+__pycache__/
+
+# Others
+dist_obfuscated
+cb_javis.egg-info
+
+reports
+*.egg-info
+storage
+report
+code_tmp
+MANIFEST.txt
+crash
+.memory
+.venv
+venv
+.jax
+sessions
+tmp
+dist
+copilot-instructions.md
+#.github
+.cortex_cache
+release
+data

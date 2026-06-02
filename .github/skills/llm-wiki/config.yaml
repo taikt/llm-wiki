@@ -1,0 +1,14 @@
+# ── LLM Wiki Config ──────────────────────────────────────────────────────────
+# Sửa các giá trị dưới đây cho phù hợp với máy bạn.
+#
+# venv: đường dẫn Python virtual environment (tuỳ chọn)
+# converter: markitdown (mặc định, nhanh) | docling (tốt cho PDF scan)
+# projects: danh sách các wiki project
+
+venv: ~/code/venv
+converter: markitdown
+
+projects:
+  - name: default
+    root: /path/to/your/wiki-root       # ← SỬA cái này!
+    description: Wiki chính của bạn
