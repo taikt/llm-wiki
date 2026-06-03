@@ -5,7 +5,10 @@
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
 
+# ── Single source of truth: skills/llm-wiki/ ───────────────────
+# Both gh skill install and this script read from the same folder.
 REPO_RAW="https://raw.githubusercontent.com/taikt/llm-wiki/main"
+SKILL_SRC="skills/llm-wiki"    # canonical source folder in the repo
 TARGET=".github/skills/llm-wiki"
 
 cd "$(pwd)"
@@ -16,14 +19,14 @@ mkdir -p "$TARGET/scripts"
 
 # Download SKILL.md + config.yaml
 for file in SKILL.md config.yaml; do
-  url="$REPO_RAW/.github/skills/llm-wiki/$file"
+  url="$REPO_RAW/$SKILL_SRC/$file"
   echo "   ⬇️  $file"
   curl -fsSL "$url" -o "$TARGET/$file"
 done
 
 # Download scripts
 for file in convert.py notes_export.py; do
-  url="$REPO_RAW/.github/skills/llm-wiki/scripts/$file"
+  url="$REPO_RAW/$SKILL_SRC/scripts/$file"
   echo "   ⬇️  scripts/$file"
   curl -fsSL "$url" -o "$TARGET/scripts/$file"
 done

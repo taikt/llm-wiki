@@ -4,7 +4,7 @@
 
 ```
 taikt/llm-wiki/
-├── skills/llm-wiki/     ← skill content (the actual skill)
+├── skills/llm-wiki/     ← skill content (single source of truth!)
 │   ├── SKILL.md         ← main skill instructions (Copilot reads this)
 │   ├── config.yaml      ← default config template
 │   └── scripts/         ← helper scripts (convert.py, notes_export.py)
@@ -12,6 +12,8 @@ taikt/llm-wiki/
 ├── commit.sh            ← helper to commit & push
 └── README.md            ← user-facing docs
 ```
+
+> **Single-source principle:** `skills/llm-wiki/` is the **only** folder with skill files. Both `gh skill install` and `install.sh` read from this same folder — no duplication.
 
 ---
 
@@ -34,6 +36,27 @@ taikt/llm-wiki/
 
 ## 🚀 How to publish / update
 
+### First-time publish
+
+```bash
+cd /path/to/your-skill-repo
+
+# 1. Authenticate gh CLI (only once)
+gh auth login
+
+# 2. Create repo on GitHub first (github.com/new), then:
+git remote add origin https://github.com/your-name/your-skill.git
+git push -u origin main
+
+# ✅ Done — skill is live! No "publish" command needed.
+# Users can now install via:
+#   gh skill install your-name/your-skill <skill-name>
+```
+
+The skill is **automatically published** once pushed to a public GitHub repo. There is no `gh skill publish` command — `gh skill install owner/repo name` reads the skill directly from the repo.
+
+### Subsequent updates
+
 ```bash
 cd /path/to/your-skill-repo
 
@@ -44,7 +67,7 @@ git diff
 git add -A
 git commit -m "Description of changes"
 
-# Push to GitHub
+# Push
 git push
 
 # (Recommended) Create a release tag so gh skill can track versions
@@ -53,7 +76,7 @@ git push origin v1.5
 # Then go to github.com/your-name/your-skill → "Create a new release" from that tag
 ```
 
-After pushing, users can get the update via either method below.
+After pushing, users update via `gh skill update` or re-run `install.sh`.
 
 ---
 
@@ -62,6 +85,9 @@ After pushing, users can get the update via either method below.
 ### Option A — `gh skill install` (requires gh CLI ≥ 2.90)
 
 ```bash
+# First, authenticate (one-time)
+gh auth login
+
 cd /path/to/their-project
 
 # Install
