@@ -34,6 +34,84 @@ taikt/llm-wiki/
 
 ---
 
+## 🤔 How GitHub skill "management" actually works
+
+### There is no skill registry
+
+GitHub has **no special mechanism** for skills. It's purely **convention-based** — `gh skill install` does not register or publish anything. Here's what actually happens:
+
+### How `gh skill install owner/repo name` works
+
+```
+gh skill install taikt/llm-wiki llm-wiki
+```
+
+This command simply:
+
+1. **Clones/fetches** the repo `taikt/llm-wiki` from GitHub (read-only, no auth needed for public repos)
+2. **Looks for** the folder `skills/llm-wiki/` inside the repo
+3. **Copies** all files from `skills/llm-wiki/` into `.github/skills/llm-wiki/` in the **user's local project**
+
+That's it. No API registration, no database entry, no "publishing" step.
+The `gh skill update` command does the same thing — re-download and overwrite.
+
+### GitHub does NOT know this is a skill
+
+Compare with other convention-based systems:
+
+| Technology | How GitHub recognizes it | Special mechanism? |
+|---|---|---|
+| npm package | `package.json` at root | ✅ npm registry + `npm publish` |
+| Docker image | `Dockerfile` at root | ✅ Docker Hub / GitHub Container Registry |
+| GitHub Action | `.github/actions/` or `action.yml` | ✅ GitHub Actions marketplace |
+| **Copilot Skill** | `skills/<name>/SKILL.md` | ❌ **No registry, no publish command** |
+
+A Copilot Skill is the **simplest** of all — just files in a folder, zero infrastructure.
+
+### How VS Code Copilot discovers skills
+
+When you open a project in VS Code:
+
+1. Copilot scans `.github/skills/` in the workspace
+2. For each subfolder that contains `SKILL.md`, it reads the instructions
+3. Those instructions become part of the AI context when you chat
+
+That's all. No config file, no extension, no restart needed.
+
+### Multiple skills in one repo
+
+You can have as many skills as you want in a single repo:
+
+```
+your-repo/
+├── skills/
+│   ├── llm-wiki/SKILL.md
+│   ├── llm-todo/SKILL.md
+│   └── llm-journal/SKILL.md
+├── shared-scripts/    ← shared code (not in any skill folder)
+└── README.md
+```
+
+Users install a specific one by name:
+
+```bash
+gh skill install your-name/your-repo llm-wiki
+gh skill install your-name/your-repo llm-todo
+```
+
+Each installs to its own subfolder: `.github/skills/llm-wiki/`, `.github/skills/llm-todo/`, etc.
+
+### When to use one repo vs multiple repos
+
+| Scenario | Recommendation |
+|---|---|
+| Skills share common scripts/utils | ✅ **One repo** — avoid duplication |
+| Skills are a "personal toolkit" | ✅ **One repo** — easy to maintain |
+| Publishing to community separately | ✅ **Separate repos** — independent versioning |
+| Each skill has different authors | ✅ **Separate repos** — independent access control |
+
+---
+
 ## 🚀 How to publish / update
 
 ### First-time publish
@@ -134,4 +212,5 @@ To install `gh`:
 2. Copy your skill files into it (SKILL.md, config.yaml, scripts/)
 3. Test directly in Copilot Chat — it will read the skill from the local path
 4. Iterate until it works, then commit & push
+
 
