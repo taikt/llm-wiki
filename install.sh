@@ -6,10 +6,14 @@
 set -euo pipefail
 
 # ── Single source of truth: skills/llm-wiki/ ───────────────────
-# Both gh skill install and this script read from the same folder.
+# gh skill install ≥ 2.90 puts skills in .agents/ (new default),
+# but VS Code Copilot also scans .github/skills/ (legacy).
+# This script installs to .github/skills/ and creates a symlink
+# under .agents/ so Copilot finds the skill from either location.
 REPO_RAW="https://raw.githubusercontent.com/taikt/llm-wiki/main"
 SKILL_SRC="skills/llm-wiki"    # canonical source folder in the repo
 TARGET=".github/skills/llm-wiki"
+AGENTS_LINK=".agents/llm-wiki"
 
 cd "$(pwd)"
 
@@ -32,6 +36,16 @@ for file in convert.py notes_export.py; do
 done
 
 chmod +x "$TARGET/scripts/"*.py
+
+# ── Create .agents/ symlink so gh skill install-style discovery works ──
+# Only create if .agents/ already exists (user has opted into the new convention)
+if [ -d ".agents" ]; then
+  # Remove stale symlink/file if it exists
+  [ -L "$AGENTS_LINK" ] || [ -e "$AGENTS_LINK" ] && rm -rf "$AGENTS_LINK"
+  # Relative symlink so it survives container moves
+  ln -s "../$TARGET" "$AGENTS_LINK"
+  echo "   🔗  Created symlink: $AGENTS_LINK → ../$TARGET"
+fi
 
 echo ""
 echo "✅  Installation complete!"

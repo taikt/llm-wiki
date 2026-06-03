@@ -17,7 +17,7 @@
 - GitHub CLI ≥ 2.90 (`gh --version`)
 - Python 3.8+ (for document conversion)
 
-### Option 1 — `gh skill install` (recommended)
+### Option 1 — `gh skill install`
 
 ```bash
 cd /path/to/your-project
@@ -28,16 +28,22 @@ or update
 gh skill update taikt/llm-wiki llm-wiki
 ```
 
-Then edit `.github/skills/llm-wiki/config.yaml` and set your wiki root path.
+> ⚠️ **Note:** `gh` CLI ≥ 2.90 installs skills into `.agents/` (the new convention).
+> VS Code Copilot scans **both** `.agents/` and `.github/skills/`, so skills work from either location.
+> If you prefer the `.github/skills/` layout, use **Option 2** below.
 
-> `gh skill` handles versioning, updates, and provenance automatically. See `gh skill --help`.
+Then edit config file and set your wiki root path.
 
-### Option 2 — Manual download (no gh CLI needed)
+### Option 2 — Manual download (no gh CLI needed, installs to `.github/skights/`)
 
 ```bash
 cd /path/to/your-project
 bash <(curl -fsSL https://raw.githubusercontent.com/taikt/llm-wiki/main/install.sh)
 ```
+
+This installs to `.github/skills/llm-wiki/` (legacy location). If `.agents/` already exists in your
+project, the script also creates a symlink `.agents/llm-wiki → ../.github/skills/llm-wiki/` so
+Copilot can find the skill from either path.
 
 ## ⚙️ Configuration
 

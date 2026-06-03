@@ -50,7 +50,22 @@ This command simply:
 
 1. **Clones/fetches** the repo `taikt/llm-wiki` from GitHub (read-only, no auth needed for public repos)
 2. **Looks for** the folder `skills/llm-wiki/` inside the repo
-3. **Copies** all files from `skills/llm-wiki/` into `.github/skills/llm-wiki/` in the **user's local project**
+3. **Copies** all files from `skills/llm-wiki/` into `<target>/llm-wiki/` in the **user's local project**
+
+**Where is `<target>`?** It depends on the `gh` CLI version:
+
+| `gh` version | Target directory | Notes |
+|---|---|---|
+| `< 2.90` | `.github/skills/` | Legacy location |
+| `≥ 2.90` | `.agents/` | **New default** — GitHub moved to `.agents/` |
+
+VS Code Copilot actually scans **both** directories, so skills work from either location.
+
+> 💡 **Pro tip:** If you want to keep your skills in `.github/skills/`, use the `install.sh` script instead:
+> `bash <(curl -fsSL https://raw.githubusercontent.com/taikt/llm-wiki/main/install.sh)`
+>
+> The script installs to `.github/skills/` and also creates a symlink under `.agents/` → `.github/skills/`
+> so Copilot sees it from both paths.
 
 That's it. No API registration, no database entry, no "publishing" step.
 The `gh skill update` command does the same thing — re-download and overwrite.
@@ -72,11 +87,15 @@ A Copilot Skill is the **simplest** of all — just files in a folder, zero infr
 
 When you open a project in VS Code:
 
-1. Copilot scans `.github/skills/` in the workspace
-2. For each subfolder that contains `SKILL.md`, it reads the instructions
+1. Copilot scans **both** `.github/skills/` and `.agents/` in the workspace
+2. For each subfolder that contains `SKILL.md` (or agent config), it reads the instructions
 3. Those instructions become part of the AI context when you chat
 
 That's all. No config file, no extension, no restart needed.
+
+> ⚠️ **`gh` CLI ≥ 2.90** installs skills into `.agents/` instead of `.github/skills/`.
+> The `install.sh` script in this repo installs to `.github/skills/` and creates a symlink
+> at `.agents/llm-wiki` → `.github/skills/llm-wiki` so both paths are covered.
 
 ### Multiple skills in one repo
 
