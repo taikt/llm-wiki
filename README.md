@@ -21,7 +21,9 @@
 
 ```bash
 cd /path/to/your-project
-gh skill install taikt/llm-wiki llm-wiki
+gh skill install taikt/llm-wiki llm-wiki 
+or
+gh skill install taikt/llm-wiki llm-wiki --dir .github\skills
 ```
 or update
 ```bash
