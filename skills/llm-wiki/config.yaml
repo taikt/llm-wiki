@@ -1,13 +1,9 @@
 # ── LLM Wiki Config ──────────────────────────────────────────────────────────
 # Edit the values below to match your machine.
 #
-# venv: path to a Python virtual environment (optional).
-#       If not set or the path doesn't exist, the skill will auto-create
-#       a venv inside <root>/.llm-wiki/.venv/ — you don't need to do anything.
 # converter: markitdown (default, fast) | docling (better for scanned PDFs)
 # projects: list of wiki projects
 
-# venv: ~/code/venv          ← uncomment and set to use a custom venv, or leave commented for auto venv
 converter: markitdown
 
 projects:
