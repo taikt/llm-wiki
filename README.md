@@ -21,18 +21,29 @@
 
 ```bash
 cd /path/to/your-project
-gh skill install taikt/llm-wiki llm-wiki 
-or
-gh skill install taikt/llm-wiki llm-wiki --dir .github\skills
-```
-or update
-```bash
-gh skill update taikt/llm-wiki llm-wiki
+
+# Default location (.agents/)
+gh skill install taikt/llm-wiki llm-wiki
+
+# Or specify a custom directory
+gh skill install taikt/llm-wiki llm-wiki --dir .github/skills
 ```
 
-> ⚠️ **Note:** `gh` CLI ≥ 2.90 installs skills into `.agents/` (the new convention).
-> VS Code Copilot scans **both** `.agents/` and `.github/skills/`, so skills work from either location.
-> If you prefer the `.github/skills/` layout, use **Option 2** below.
+To update:
+```bash
+# If installed to default location
+gh skill update taikt/llm-wiki llm-wiki
+
+# If installed with --dir, use the same flag
+gh skill update taikt/llm-wiki llm-wiki --dir .github/skills
+
+# Alternatively, re-run install (overwrites existing files)
+gh skill install taikt/llm-wiki llm-wiki --dir .github/skills
+```
+
+> ⚠️ **Note:** `gh` CLI ≥ 2.90 installs skills into `.agents/` by default.
+> Use `--dir .github/skills` to keep skills in the legacy location.
+> VS Code Copilot scans **both** directories, so skills work from either location.
 
 Then edit config file and set your wiki root path.
 
@@ -63,7 +74,8 @@ Open Copilot Chat and try:
 
 | You say | Copilot does |
 |---------|-------------|
-| `ingest report.pdf` | Reads file from `raw/`, creates wiki pages |
+| `convert report.pdf` | Converts binary file → Markdown cache |
+| `ingest report` | Creates wiki pages from cached/raw Markdown |
 | `what does the wiki say about machine learning?` | Searches and answers |
 | `write a page about Python basics` | Creates a new page |
 | `lint wiki` | Checks wiki quality |
