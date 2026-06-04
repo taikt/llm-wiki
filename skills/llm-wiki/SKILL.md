@@ -29,7 +29,6 @@ Config file location: `.github/skills/llm-wiki/config.yaml`
 
 Example:
 ```yaml
-venv: ~/code/venv
 converter: markitdown
 
 projects:
@@ -47,34 +46,27 @@ projects:
 
 > ⚡ EXECUTE immediately — do not describe this workflow to the user. Read config, resolve root, then act.
 
-1. Read `config.yaml` to load both global settings and the project list.
+1. Read `config.yaml` to load global settings and the project list.
    - **Global settings** (top-level keys, all optional):
-     - `venv` — path to a Python virtual environment. Auto-expand `~`. Default: **auto-created** (see below).
      - `converter` — preferred converter tool: `markitdown` (default) or `docling`.
    - **Projects** — entries under the `projects` key (YAML array).
      - Each project has: `name`, `root`, `description`.
-   - Store resolved `<root>`, `<venv>`, and `<converter>` for use in all subsequent steps.
+   - Store resolved `<root>` and `<converter>` for use in all subsequent steps.
 
-2. **Auto-create a Python virtual environment if needed** (so non-technical users never need to run `python3 -m venv` manually):
+2. **Auto-create a Python virtual environment** (no manual setup needed):
 
-   > ⚡ This runs silently — do not ask the user for permission.
+   > ⚡ Runs silently — do not ask the user for permission.
 
-   - If `<venv>` is set in config.yaml and the path exists → use it as-is.
-   - If `<venv>` is set but the path **does not exist** → auto-create it:
-     ```
-     python3 -m venv "<venv>"
-     ```
-     (On Windows: `python -m venv "<venv>"`)
-   - If `<venv>` is **not set** (empty or missing) → auto-create inside the wiki's cache folder:
+   - The venv is always created inside the wiki's cache folder:
      ```
      <venv> = <root>/.llm-wiki/.venv
      python3 -m venv "<venv>"
      ```
      (On Windows: `python -m venv "<venv>"`)
-   - **Confirm it worked**: after creation, verify the venv's Python exists:
+   - Verify the venv's Python exists:
      - macOS/Linux: `<venv>/bin/python` exists
      - Windows: `<venv>\Scripts\python.exe` exists
-   - After creation, always upgrade pip inside the fresh venv:
+   - Upgrade pip inside the fresh venv:
      ```
      "<venv>/bin/python" -m pip install --upgrade pip
      ```
@@ -153,15 +145,14 @@ If the file extension is `.txt`, `.md`, `.rst`, `.log`, `.csv`, `.json`, `.yaml`
    "<venv>/bin/python" <skill_dir>/scripts/convert.py "<root>/raw/<filename>" \
        --tool <converter> \
        --auto-install \
-       --output "<md_path>" \
-       --venv "<venv>"
+       --output "<md_path>"
    ```
    - `<skill_dir>` = directory containing this SKILL.md (`.github/skills/llm-wiki`).
    - `--auto-install` auto-installs `markitdown[all]` or `docling` if missing — no manual setup needed.
    - To override converter for this file: append `--tool docling`.
    - On Windows:
      ```
-     "<venv>\Scripts\python.exe" <skill_dir>/scripts/convert.py "<root>/raw/<filename>" --tool <converter> --auto-install --output "<md_path>" --venv "<venv>"
+     "<venv>\Scripts\python.exe" <skill_dir>/scripts/convert.py "<root>/raw/<filename>" --tool <converter> --auto-install --output "<md_path>"
      ```
 
 3. **On success**, report:
@@ -248,13 +239,12 @@ Check and report as a numbered list with suggested fixes:
 
 ### E. Configure the wiki (update config.yaml via chat)
 
-Triggered by: "configure", "add project", "set venv", "change converter", "list projects", or when the user mentions config settings.
+Triggered by: "configure", "add project", "change converter", "list projects", or when the user mentions config settings.
 
 1. Read `config.yaml` and display the current settings in a readable format.
 2. Ask the user what they want to change. Accept free-form answers:
    - "add project `<name>` at `<path>`" → append a new entry to `projects` list.
    - "set default project to `<name>`" → rename the existing `name: default` entry or update the first entry.
-   - "set venv to `<path>`" → update global `venv` key.
    - "set converter to markitdown/docling" → update global `converter` key.
    - "remove project `<name>`" → delete that entry from `projects`.
 3. Show a preview of the updated config YAML to the user.
