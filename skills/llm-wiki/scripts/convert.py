@@ -25,9 +25,49 @@ text extraction using stdlib.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+
+def _venv_python(venv: str) -> Path | None:
+    """Return the python executable inside *venv*, if it exists."""
+    venv_path = Path(venv).expanduser().resolve()
+    for candidate in (
+        venv_path / "bin" / "python",        # POSIX
+        venv_path / "Scripts" / "python.exe",  # Windows
+    ):
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _reexec_under_venv_if_needed(venv: str | None) -> None:
+    """If --venv is given, re-exec this script with the venv's python so
+    installed packages are importable. Without this, --auto-install would
+    install into <venv> but the currently running (e.g. system) interpreter
+    could never import it, silently falling back to the basic-text fallback
+    every time.
+
+    Note: we deliberately do NOT compare resolved/realpath executables to
+    decide whether to skip re-exec. Many venvs (esp. those created with
+    `python -m venv --symlinks`, the default on Linux) have bin/python as a
+    symlink that resolves all the way to the system python binary (e.g.
+    /usr/bin/python3.12) — venv activation works via pyvenv.cfg discovery
+    based on the *unresolved* executable path, not the realpath. Comparing
+    realpaths would make the venv interpreter look identical to the system
+    one and incorrectly skip the re-exec, defeating the whole purpose. The
+    _LLM_WIKI_CONVERT_REEXECED env guard prevents infinite re-exec loops.
+    """
+    if not venv or os.environ.get("_LLM_WIKI_CONVERT_REEXECED") == "1":
+        return
+    target = _venv_python(venv)
+    if target is None:
+        return
+    env = dict(os.environ)
+    env["_LLM_WIKI_CONVERT_REEXECED"] = "1"
+    os.execve(str(target), [str(target), __file__] + sys.argv[1:], env)
 
 # ── Supported extensions per tool ────────────────────────────────────────────
 
@@ -201,6 +241,11 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+
+    # Re-exec under the venv's own python (if --venv was given) BEFORE doing
+    # any work, so --auto-install'd packages are guaranteed importable in
+    # this same process. See _reexec_under_venv_if_needed for rationale.
+    _reexec_under_venv_if_needed(args.venv)
 
     if not args.file.exists():
         print(f"[ERROR] File not found: {args.file}", file=sys.stderr)

@@ -1,15 +1,18 @@
 ---
-name: llm-wiki
-description: "Manage a personal LLM-maintained wiki: convert binary documents to Markdown, ingest Markdown sources to create wiki pages, answer questions, create/update concept pages, lint the wiki, and configure projects. Use when the user says 'convert', 'ingest', 'add source', asks a question about wiki content, says 'lint', 'audit', 'configure wiki', or mentions a filename to add. Supports configurable root folder so you can work with any project's wiki regardless of the currently open workspace."
-standard: https://agentskills.io/specification
+compatibility: Requires Python 3.8+. Converter packages (markitdown or docling) are auto-installed on first use. macOS only for Apple Notes ingestion.
+description: 'Manage a personal LLM-maintained wiki: ingest source documents, answer questions, create/update concept pages, lint the wiki, and configure projects. Use when the user says ''ingest'', ''add source'', asks a question about wiki content, says ''lint'', ''audit'', ''configure wiki'', or mentions a filename to add. Supports configurable root folder so you can work with any project''s wiki regardless of the currently open workspace.'
 license: MIT
-compatibility: "Requires Python 3.8+. Python venv is auto-created on first use (no manual setup). Converter packages (markitdown or docling) are auto-installed on first use. macOS only for Apple Notes ingestion."
 metadata:
-  author: taikt
-  version: "1.5"
-  argument-hint: "<question or command> [--project <name>] [--root <absolute-path>]"
+    argument-hint: <question or command> [--project <name>] [--root <absolute-path>]
+    author: taikt
+    github-path: skills/llm-wiki
+    github-ref: refs/tags/v1.0.0
+    github-repo: https://github.com/taikt/llm-wiki
+    github-tree-sha: 37d628989bf4b6b45f6f896dafcb742a279c38a2
+    version: "1.4"
+name: llm-wiki
+standard: https://agentskills.io/specification
 ---
-
 # LLM Wiki Skill (Copilot)
 
 ## Purpose
@@ -29,6 +32,7 @@ Config file location: `.github/skills/llm-wiki/config.yaml`
 
 Example:
 ```yaml
+venv: ~/code/venv
 converter: markitdown
 
 projects:
@@ -46,32 +50,13 @@ projects:
 
 > ⚡ EXECUTE immediately — do not describe this workflow to the user. Read config, resolve root, then act.
 
-1. Read `config.yaml` to load global settings and the project list.
+1. Read `config.yaml` to load both global settings and the project list.
    - **Global settings** (top-level keys, all optional):
+     - `venv` — path to a Python virtual environment. Auto-expand `~`. Default: none (use system Python).
      - `converter` — preferred converter tool: `markitdown` (default) or `docling`.
    - **Projects** — entries under the `projects` key (YAML array).
      - Each project has: `name`, `root`, `description`.
-   - Store resolved `<root>` and `<converter>` for use in all subsequent steps.
-
-2. **Auto-create a Python virtual environment** (no manual setup needed):
-
-   > ⚡ Runs silently — do not ask the user for permission.
-
-   - The venv is always created inside the wiki's cache folder:
-     ```
-     <venv> = <root>/.llm-wiki/.venv
-     python3 -m venv "<venv>"
-     ```
-     (On Windows: `python -m venv "<venv>"`)
-   - Verify the venv's Python exists:
-     - macOS/Linux: `<venv>/bin/python` exists
-     - Windows: `<venv>\Scripts\python.exe` exists
-   - Upgrade pip inside the fresh venv:
-     ```
-     "<venv>/bin/python" -m pip install --upgrade pip
-     ```
-     (Windows: `"<venv>\Scripts\python.exe" -m pip install --upgrade pip`)
-   - Store the resolved `<venv>` — it is now guaranteed to exist for all subsequent steps.
+   - Store resolved `<venv>` and `<converter>` for use in all subsequent steps.
 
 | Argument | Meaning |
 |---|---|
@@ -90,13 +75,11 @@ projects:
 
 ```
 <root>/
-  raw/              -- source documents (immutable — NEVER modify)
-  .llm-wiki/
-    cached/         -- converted .md cache (auto-created, never touch manually)
-    .venv/          -- Python virtual env (auto-created on first use, never touch manually)
-  wiki/             -- markdown pages maintained by Copilot (= Obsidian vault folder)
-  wiki/index.md     -- table of contents for the entire wiki
-  wiki/log.md       -- append-only record of all operations
+  raw/           -- source documents (immutable — NEVER modify)
+  .llm-wiki/cached/ -- converted .md cache (auto-created, never touch manually)
+  wiki/          -- markdown pages maintained by Copilot (= Obsidian vault folder)
+  wiki/index.md  -- table of contents for the entire wiki
+  wiki/log.md    -- append-only record of all operations
 ```
 
 > **Obsidian tip**: Point your Obsidian vault to `<root>/wiki/` (or the parent `<root>/`). The `.llm-wiki/` folder can be excluded from the vault via Obsidian's "Excluded files" setting.
@@ -105,105 +88,95 @@ projects:
 
 ## Commands & workflows
 
-### A1. Convert — Convert a binary source document to Markdown
+### A. Ingest a source document
 
-Triggered by: "convert <filename>", or when the user explicitly asks to convert a file.
+Triggered by: "ingest", "add source", or a filename inside `raw/`.
 
-**Step A1-1 — Smart file resolution:**
+**Step A-pre — Smart file resolution (always do this first for ingest):**
 
-Look up the file in `<root>/raw/`:
+Before looking up the file, run a fuzzy-match against `<root>/raw/`:
 
-1. List all files in `<root>/raw/` (use `ls` or `list_dir` tool — do NOT use `file_search` which only searches the open workspace).
+1. List all files in `<root>/raw/` (use `ls` or list_dir tool — do NOT use file_search which only searches the open workspace).
 2. Normalize: lowercase the user's input and each filename, strip spaces/punctuation for comparison.
-3. Pick the best match (priority order):
+3. Pick the best match using these rules (in priority order):
    - **Exact match** (case-insensitive) → use it directly.
    - **Substring match** → the user's input is contained in a filename, or vice versa.
    - **Fuzzy match** → longest common subsequence / common words score ≥ 0.6.
-4. If exactly one file matches → proceed silently.
-5. If multiple matches → show list and ask: _"Found multiple matches: … Which one?"_
-6. If no match → list all files in `raw/` and ask the user to pick.
+4. If exactly one file matches → proceed silently with that file (no need to ask the user).
+5. If multiple files match → show the list and ask which one: `Found multiple matches: …`
+6. If no file matches → list all files in `<root>/raw/` and ask the user to pick one.
 
-> **Never** fail with "file not found" without first listing and fuzzy-matching.
+> **Never** fail immediately with "file not found" without first listing and fuzzy-matching.
 
-**Step A1-2 — Check if already Markdown:**
+**Step A-0 — Convert if needed (PDF/DOCX/XLSX/PPTX/images) — two-step process:**
 
-If the file extension is `.txt`, `.md`, `.rst`, `.log`, `.csv`, `.json`, `.yaml`, or plain code:
-  → Tell the user: _"`<filename>` is already plain text. Use 'ingest <filename>' to create wiki pages."_ and stop.
+If the file extension is NOT `.txt`, `.md`, `.rst`, `.log`, `.csv`, `.json`, `.yaml`, or plain code:
 
-**Step A1-3 — Convert binary → `.md` cache:**
+**A-0a — Convert source → save as `.md` file:**
 
-1. Determine output path:
+1. Resolve settings from config:
+   - `<converter>` — value of `converter` key in config.yaml (default: `markitdown`).
+   - `<venv>` — value of `venv` key in config.yaml (empty string if not set).
+   - Resolve `<python_bin>` — the interpreter used to **run** convert.py itself:
+     - If `<venv>` is set, check for `<venv>/bin/python` (POSIX) or `<venv>\Scripts\python.exe` (Windows) and use that path directly as `<python_bin>`.
+     - **If `<venv>` is empty, or set but the venv python doesn't exist at that path, auto-create a venv** (do NOT silently fall back to system `python`, since installing packages there commonly fails with `error: externally-managed-environment` / PEP 668 on modern distros):
+       1. Pick a default venv location: `~/.llm-wiki/venv` (expand `~`). Create parent dirs as needed.
+       2. Run `python3 -m venv <default_venv_path>` (or `python -m venv ...` on Windows).
+          - If this fails because the `venv`/`ensurepip` module is missing (e.g. Debian/Ubuntu without `python3-venv`), tell the user exactly what to run to fix it, e.g. `sudo apt-get install python3-venv`, then stop and wait — do not attempt other workarounds (no `--break-system-packages`, no sudo pip, no manual ensurepip hacks).
+       3. On success, set `<venv>` = `<default_venv_path>` and **persist it back to config.yaml** (update the global `venv:` key) so future runs reuse the same venv instead of recreating it.
+       4. Resolve `<python_bin>` = `<venv>/bin/python` (POSIX) or `<venv>\Scripts\python.exe` (Windows).
+     - Only fall back to plain `python`/`python3` on PATH if venv creation is truly not possible AND the user explicitly says to proceed with system Python anyway.
+   - ⚠️ **Important**: `--venv` only tells convert.py which `pip` to use for `--auto-install`; it does **not** change which interpreter runs the script. If you invoke `python convert.py ... --venv "<venv>"` using the system `python`, the tool installs into `<venv>` but the running process still can't import it, and conversion silently falls back to a "[Cannot convert ...]" placeholder even though the install "succeeded". Always launch the script with `<python_bin>` resolved above — do not pass `--venv` as a substitute for invoking the right interpreter.
+2. Determine the output path for the converted Markdown:
+  ```
+  <md_path> = <root>/.llm-wiki/cached/<filename-stem>.md
+  ```
+  e.g. `report.pdf` → `<root>/.llm-wiki/cached/report.md`
+  - Create `<root>/.llm-wiki/cached/` if it doesn't exist (auto-create).
+  - **Never** write converted files into `<root>/raw/` — that folder is immutable.
+3. Run the converter script using `<python_bin>` directly, passing `--output` to save to disk:
    ```
-   <md_path> = <root>/.llm-wiki/cached/<filename-stem>.md
-   ```
-   e.g. `report.pdf` → `<root>/.llm-wiki/cached/report.md`
-   - Auto-create `<root>/.llm-wiki/cached/` if it doesn't exist.
-   - **Never** write converted files into `<root>/raw/` — that folder is immutable.
-
-2. Run the converter using the venv's Python:
-   ```
-   "<venv>/bin/python" <skill_dir>/scripts/convert.py "<root>/raw/<filename>" \
+   "<python_bin>" <skill_dir>/scripts/convert.py "<root>/raw/<filename>" \
        --tool <converter> \
        --auto-install \
        --output "<md_path>"
    ```
-   - `<skill_dir>` = directory containing this SKILL.md (`.github/skills/llm-wiki`).
-   - `--auto-install` auto-installs `markitdown[all]` or `docling` if missing — no manual setup needed.
-   - To override converter for this file: append `--tool docling`.
-   - On Windows:
+   - `<skill_dir>` is the directory containing this SKILL.md file (`.github/skills/llm-wiki`).
+   - `--auto-install` automatically installs `markitdown[all]` or `docling` (depending on `<converter>`) if the package is missing in the environment. **No manual install is needed.**
+   - The script prints the resolved output path to stdout on success.
+   - To override the converter for a single file, append `--tool docling`.
+   - This same `"<python_bin>" ... --output "<md_path>"` form is used on all platforms (POSIX and Windows) — there is no separate Windows-only path anymore.
+   - If conversion fails, show the error output to the user and stop.
+4. **Always verify** the resulting `<md_path>` contains real converted content — open it and confirm it does NOT start with `[Cannot convert ...: install markitdown or docling]`. If it does, the wrong interpreter was used; re-run with the correct `<python_bin>` before proceeding.
+
+**A-0b — Ingest from the saved `.md` file:**
+
+4. The source for all subsequent steps (A-1 onward) is the generated `<md_path>` file, **not** the original binary file.
+   - Read `<md_path>` directly (it is a plain Markdown file — no further conversion needed).
+   - Treat `<md_path>` as the document content in steps A-1+.
+
+**Step A-1 onward (all file types):**
+1. Read the **full** source document (use converted `.md` from `<root>/.llm-wiki/cached/` if available, otherwise read from `<root>/raw/`).
+2. **Auto-create all wiki pages immediately — do NOT ask the user for confirmation, and do NOT ask the user which method/script to use.** Proceed directly to writing. Decide automatically per the rule below — never present this as a choice.
+3. **Decide the ingest strategy automatically** based on document size/structure (do not ask the user):
+   - Count numbered top-level headings (lines matching `^\d+\.\s+[A-Z]`) or Markdown `#`/`##` headings in the cached `.md`.
+   - **If the document is large/structured (roughly 20+ headings, or a formal spec/SRD/standard style document):** treat it as a **grouped ingest** automatically — run the two helper scripts back-to-back, with no intermediate question to the user:
      ```
-     "<venv>\Scripts\python.exe" <skill_dir>/scripts/convert.py "<root>/raw/<filename>" --tool <converter> --auto-install --output "<md_path>"
+     python <skill_dir>/scripts/ingest_grouped.py "<md_path>" "<root>"
+     python <skill_dir>/scripts/ingest_cached.py  "<md_path>" "<root>"
      ```
-
-3. **On success**, report:
-   ```
-   ✅ Converted `<filename>` → `.llm-wiki/cached/<filename-stem>.md`
-      Say "ingest <filename-stem>" to create wiki pages.
-   ```
-
-4. **On failure**, show the error output and stop.
-
----
-
-### A2. Ingest — Create wiki pages from a Markdown source
-
-Triggered by: "ingest <name>", "ingest <filename>.md".
-
-**Step A2-1 — Locate the Markdown source (search order):**
-
-1. **First, search `<root>/.llm-wiki/cached/`** for a matching `.md` file (fuzzy-match, same rules as A1-1).
-   - If found → this is your source. Proceed to A2-2.
-2. **If not found in cached, search `<root>/raw/`** for a matching `.md`, `.txt`, or other plain-text file.
-   - If found → this is your source. Proceed to A2-2.
-3. **If not found in raw either**, check `<root>/raw/` for a binary file with the same name stem:
-   - List files in `raw/` and look for e.g. `report.pdf` when user said "ingest report".
-   - If a binary match is found → tell the user: _"`<filename>` needs conversion first. Say 'convert <filename>'."_ and stop.
-4. **If nothing matches at all**, list all files in `raw/` and `cached/` and ask the user.
-
-**Step A2-2 — Batch wiki page creation:**
-
-> **⚡ Batch limit:** Create **at most 5 pages per turn** (1 summary + up to 4 concept pages).
-> If more pages are needed, report progress and ask the user to continue.
-
-1. Read the **full** source Markdown document.
-2. **Create pages immediately** — do NOT ask for confirmation on the first batch.
-3. **First batch (always do in this order):**
-   a. Create a **summary page** in `<root>/wiki/` named after the source (lowercase, hyphens).
-   b. Create up to **4 concept pages** for the most important ideas/entities.
-4. Write each page in full — do not skip content or use placeholders.
-5. Add `[[wiki-links]]` to connect pages created in this batch.
-6. Update `<root>/wiki/index.md` with new/updated pages and one-line descriptions.
-7. Append to `<root>/wiki/log.md`:
+     This creates concise top-level pages directly in `<root>/wiki/` (updating `index.md`), and fine-grained per-heading pages archived in `<root>/wiki/_detailed/` (updating `_detailed_index.md`). See **"Grouped ingest"** below for full details on what each script does.
+   - **Otherwise (short/simple document):** create pages manually following steps 4–7 below.
+4. Create a summary page in `<root>/wiki/` named after the source (lowercase, hyphens) — always do this regardless of which strategy was used in step 3.
+5. For the manual path only: create or update concept pages for each major idea or entity — a single source may touch 10–15 pages, that is normal.
+6. Add `[[wiki-links]]` to connect related pages throughout all affected pages.
+7. Update `<root>/wiki/index.md` with new/updated pages and one-line descriptions (the grouped-ingest scripts already do this automatically for their own pages).
+8. Append to `<root>/wiki/log.md`:
    ```
    ## <YYYY-MM-DD> — Ingested: <source-filename>
    - Created: page1.md, page2.md
    - Updated: page3.md, index.md
    ```
-8. **If more pages remain:** report:
-   ```
-   ✅ Created 5/12 pages. Remaining: X, Y, Z. Say 'continue' to create the next batch.
-   ```
-9. **On user's 'continue'** → create next 5 pages, update index/log, repeat until done.
 
 ### B. Answer a question
 
@@ -239,12 +212,13 @@ Check and report as a numbered list with suggested fixes:
 
 ### E. Configure the wiki (update config.yaml via chat)
 
-Triggered by: "configure", "add project", "change converter", "list projects", or when the user mentions config settings.
+Triggered by: "configure", "add project", "set venv", "change converter", "list projects", or when the user mentions config settings.
 
 1. Read `config.yaml` and display the current settings in a readable format.
 2. Ask the user what they want to change. Accept free-form answers:
    - "add project `<name>` at `<path>`" → append a new entry to `projects` list.
    - "set default project to `<name>`" → rename the existing `name: default` entry or update the first entry.
+   - "set venv to `<path>`" → update global `venv` key.
    - "set converter to markitdown/docling" → update global `converter` key.
    - "remove project `<name>`" → delete that entry from `projects`.
 3. Show a preview of the updated config YAML to the user.
@@ -278,12 +252,25 @@ python <skill_dir>/scripts/notes_export.py \
 ```
 Files are saved to `<root>/raw/notes/<folder-slug>/<note-slug>.txt`.
 
-Step 3: Run **A2 (Ingest)** on each exported `.txt` file.
+Step 3: Run **Command A (Ingest)** on each exported `.txt` file.
 
 **OneNote (macOS):**
 OneNote does not support AppleScript. The only option: export the page from OneNote → PDF → save to `<root>/raw/` → Command A will automatically use `convert.py` to process it.
 
 **Note:** Original notes in Apple Notes / OneNote are never modified. The wiki page becomes the searchable, interlinked version.
+
+---
+
+### Grouped ingest (for very large source documents)
+
+Triggered automatically by Step A-1's size check — **never presented to the user as a choice**. For long structured documents (engineering specs, SRDs, etc.) that would otherwise explode into 100+ tiny per-heading pages, run these two helper scripts back-to-back instead of manually creating pages:
+
+- `scripts/ingest_grouped.py <cached_md> <wiki_root>` — creates **one page per top-level numbered section** (e.g. "1. Introduction", "2. Description", "3. Requirements", ...) directly in `<root>/wiki/`, and regenerates `<root>/wiki/index.md` to list only these top-level pages. Only headings whose title starts with an uppercase letter are treated as real section headings, to avoid false positives from embedded numbered lists (e.g. retry sequences like "3. attempt 10 sec") being mistaken for sections.
+- `scripts/ingest_cached.py <cached_md> <wiki_root>` — creates one page **per fine-grained heading/requirement** (can be 100+), but writes them into `<root>/wiki/_detailed/` (not the main `wiki/` folder) and regenerates `<root>/wiki/_detailed_index.md` to reference them. It also detects the fallback "Markdown headings" split (`^#{1,3} ...`) only when there are 5+ genuine matches, to avoid a single stray `#` (e.g. a "#" table column header from a converted PDF table) collapsing the whole document into 1–2 giant sections. Noise headings — review-tool markers ("Comment00000029"), bare numbers ("1", "3"), and numbered example/retry list items whose prefix was already stripped ("attempt 10 sec", "attempt 65 sec") — are folded back into the preceding real section instead of becoming their own junk pages.
+
+Always run both scripts, in this order, with no confirmation prompt in between: `ingest_grouped.py` first (concise top-level index), then `ingest_cached.py` (searchable per-requirement detail pages archived under `_detailed/`). Both scripts are idempotent and safe to re-run — `ingest_grouped.py` will relocate (never delete) any stale/misnamed top-level pages from a previous run into `_detailed/` rather than losing content. After both complete, report a brief summary of what was created/updated — do not ask the user to pick between scripts or confirm before running them.
+
+Any hand-authored page you create in `<root>/wiki/` (e.g. via Command C, or the Step A-1 summary page) is left untouched by these scripts as long as its filename doesn't start with `<number>-`.
 
 ---
 

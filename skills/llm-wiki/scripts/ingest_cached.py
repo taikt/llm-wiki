@@ -1,0 +1,168 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+import re
+from pathlib import Path
+from datetime import date
+import sys
+
+def slugify(title: str) -> str:
+    s = title.lower()
+    s = re.sub(r"[^a-z0-9\s-]", "", s)
+    s = re.sub(r"[\s_]+", "-", s).strip("-")
+    return s[:200]
+
+def split_sections(text: str) -> list[tuple[str,str]]:
+    # Normalize patterns like lines that contain only a numbered heading (e.g. "1.1.")
+    # followed by the title on the next non-empty line -> join them into one heading line.
+    lines = text.splitlines()
+    normalized_lines = []
+    i = 0
+    while i < len(lines):
+        m = re.match(r'^\s*(\d+(?:\.\d+)*)\.\s*$', lines[i])
+        if m and i + 1 < len(lines):
+            # find next non-empty line
+            j = i + 1
+            while j < len(lines) and lines[j].strip() == '':
+                j += 1
+            if j < len(lines):
+                # combine into one heading line
+                combined = f"{m.group(1)}. {lines[j].strip()}"
+                normalized_lines.append(combined)
+                i = j + 1
+                continue
+        normalized_lines.append(lines[i])
+        i += 1
+    text = '\n'.join(normalized_lines)
+
+    # Prefer markdown headings, but only trust this branch if there are enough
+    # matches to look like real generated Markdown structure (e.g. from a
+    # docling/markitdown conversion that emits "#"/"##" headings). A couple of
+    # stray matches are usually false positives — e.g. a "#" table column
+    # header ("# Component DTC Name ...") in a PDF-extracted table, which
+    # would otherwise collapse the whole document into 1-2 giant sections.
+    md_headings = list(re.finditer(r'^(#{1,3})\s*(.+)$', text, flags=re.M))
+    if len(md_headings) >= 5:
+        sections = []
+        for i, m in enumerate(md_headings):
+            start = m.end()
+            end = md_headings[i+1].start() if i+1 < len(md_headings) else len(text)
+            title = m.group(2).strip()
+            body = text[start:end].strip()
+            sections.append((title, body))
+        return sections
+
+    # Fallback: hierarchical numbered headings like '1.1. Introduction' or '3.2 Title'
+    num_headings = list(re.finditer(r'^(\d+(?:\.\d+)*)\.\s+(.+)$', text, flags=re.M))
+    if num_headings:
+        sections = []
+        for i, m in enumerate(num_headings):
+            start = m.end()
+            end = num_headings[i+1].start() if i+1 < len(num_headings) else len(text)
+            title = m.group(2).strip()
+            body = text[start:end].strip()
+            sections.append((title, body))
+        return sections
+
+    # Last resort: split by pages form-feed or long blank lines between blocks
+    blocks = re.split(r'\n\f\n|\n\s{2,}\n', text)
+    results = []
+    for b in blocks:
+        first = b.strip().splitlines()
+        if not first:
+            continue
+        title = first[0].strip()
+        body = '\n'.join(first[1:]).strip()
+        results.append((title, body))
+    return results
+
+def first_sentence(s: str) -> str:
+    s = s.strip()
+    if not s:
+        return ''
+    m = re.search(r"(.+?[\.!?])\s", s)
+    if m:
+        return m.group(1).strip()
+    return s.splitlines()[0][:200]
+
+# Titles that are noise rather than real headings: review-tool comment markers
+# ("Comment00000029"), bare numbers ("1", "3"), and numbered retry/example
+# list items whose heading number was already stripped by split_sections,
+# leaving titles like "attempt 10 sec" or "attempt 5 sec". Instead of becoming
+# their own page, their body is folded into the preceding real section.
+_NOISE_TITLE_RE = re.compile(
+    r'^(comment\d+|\d+|attempt\s+\d+\s*sec\b.*)$', re.IGNORECASE
+)
+
+def merge_noise_sections(sections: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    merged: list[list[str]] = []  # list of [title, body]
+    for title, body in sections:
+        if _NOISE_TITLE_RE.match(title.strip()) and merged:
+            # Fold this noisy heading + body back into the previous real section.
+            merged[-1][1] = (merged[-1][1] + f"\n\n{title}\n{body}").strip()
+        else:
+            merged.append([title, body])
+    return [(t, b) for t, b in merged]
+
+def make_page(title: str, body: str, source_rel: str, outdir: Path) -> Path:
+    fname = slugify(title) or 'untitled'
+    path = outdir / f"{fname}.md"
+    summary = first_sentence(body)
+    content = f"# {title}\n\n**Summary**: {summary}\n\n**Sources**: {source_rel}\n\n**Last updated**: {date.today().isoformat()}\n\n---\n\n{body}\n\n## Related pages\n\n-\n"
+    path.write_text(content, encoding='utf-8')
+    return path
+
+def update_index(index_path: Path, pages: list[Path], title_map: dict[str,str]):
+    lines = ["# Detailed Pages (archived)\n\n"]
+    for p in pages:
+        name = p.stem
+        title = title_map.get(name, name)
+        lines.append(f"- [{title}](_detailed/{p.name}) — autogenerated from source.\n")
+    index_path.write_text(''.join(lines), encoding='utf-8')
+
+def append_log(log_path: Path, source_name: str, pages: list[Path]):
+    lines = log_path.read_text(encoding='utf-8') if log_path.exists() else ''
+    entry = f"## {date.today().isoformat()} — Ingested (detailed): {source_name}\n"
+    entry += "- Created: " + ', '.join(f"_detailed/{p.name}" for p in pages) + "\n"
+    entry += "- Updated: _detailed_index.md, log.md\n\n"
+    log_path.write_text(lines + entry, encoding='utf-8')
+
+def main():
+    if len(sys.argv) < 3:
+        print("Usage: ingest_cached.py <cached_md> <wiki_root>")
+        sys.exit(1)
+    cached = Path(sys.argv[1])
+    wiki_root = Path(sys.argv[2])
+    if not cached.exists():
+        print("Cached file not found:", cached)
+        sys.exit(1)
+    text = cached.read_text(encoding='utf-8')
+    sections = split_sections(text)
+    sections = merge_noise_sections(sections)
+    # Fine-grained per-heading pages are noisy (can be 100+ per document), so
+    # they are written to wiki/_detailed/ rather than the main wiki/ folder.
+    # Use ingest_grouped.py to produce the concise top-level pages that belong
+    # in wiki/index.md.
+    outdir = wiki_root / 'wiki' / '_detailed'
+    outdir.mkdir(parents=True, exist_ok=True)
+    pages = []
+    title_map = {}
+    source_rel = 'raw/' + Path(cached.name).with_suffix('.pdf').name
+    for title, body in sections:
+        # Skip very short headings that are not useful
+        if len(body) < 50 and len(title) < 10:
+            continue
+        p = make_page(title, body, source_rel, outdir)
+        pages.append(p)
+        title_map[p.stem] = title
+    # If no sections found, create a single page from full document
+    if not pages:
+        p = make_page(cached.stem.replace('_',' '), text, source_rel, outdir)
+        pages.append(p)
+        title_map[p.stem] = cached.stem
+    wiki_root_dir = wiki_root / 'wiki'
+    update_index(wiki_root_dir / '_detailed_index.md', pages, title_map)
+    append_log(wiki_root_dir / 'log.md', Path(source_rel).name, pages)
+    print('Created', len(pages), 'detailed pages in wiki/_detailed/')
+
+if __name__ == '__main__':
+    main()

@@ -1,12 +1,14 @@
 # ── LLM Wiki Config ──────────────────────────────────────────────────────────
-# Edit the values below to match your machine.
+# Sửa các giá trị dưới đây cho phù hợp với máy bạn.
 #
-# converter: markitdown (default, fast) | docling (better for scanned PDFs)
-# projects: list of wiki projects
+# venv: đường dẫn Python virtual environment (tuỳ chọn)
+# converter: markitdown (mặc định, nhanh) | docling (tốt cho PDF scan)
+# projects: danh sách các wiki project
 
-converter: markitdown
+venv: /home/worker/src/venv
+converter: docling
 
 projects:
   - name: default
-    root: /path/to/your/wiki-root       # ← EDIT THIS!
-    description: Your main wiki
+    root: /home/worker/src/jlr_code/tcua/review/wiki       
+    description: Wiki chính của bạn
